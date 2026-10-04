@@ -1,6 +1,7 @@
 // Kontrollskript: node tests/check.js
 const { FOODS, ibsVerdict } = require("./foods.js");
 const { RECIPES } = require("./recipes.js");
+const { NUTRIENTS, MICRO } = require("./micro.js");
 
 let errors = 0;
 function fail(msg) { console.error("FEL: " + msg); errors++; }
@@ -34,6 +35,14 @@ for (const r of RECIPES) {
   }
   console.log("  " + r.title.padEnd(48) + Math.round(kcal) + " kcal, " + Math.round(protein) + " g protein");
 }
+
+// 2b. Vitaminer och mineraler: alla livsmedel har 10 värden, inga okända ID:n
+for (const f of FOODS) {
+  const m = MICRO[f.id];
+  if (!m) fail("Saknar vitamin/mineraldata: " + f.id);
+  else if (m.length !== NUTRIENTS.length || m.some((v) => typeof v !== "number" || v < 0)) fail("Ogiltig micro-rad: " + f.id);
+}
+for (const id of Object.keys(MICRO)) if (!FOODS.find((x) => x.id === id)) fail("micro.js har okänt ID: " + id);
 
 // 3. Bedömningslogik
 const ris = FOODS.find((x) => x.id === "ris");

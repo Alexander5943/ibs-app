@@ -2,7 +2,7 @@
   "use strict";
 
   const KEY = "ibs-koll-v1";
-  const DEFAULTS = { log: {}, custom: [], boxes: [], settings: { type: "", kcalGoal: 2000, proteinGoal: 90 } };
+  const DEFAULTS = { log: {}, custom: [], boxes: [], settings: { type: "", kcalGoal: 2000, proteinGoal: 90, fiberGoal: 25 } };
 
   const TYPE_TIPS = {
     D: "IBS-D: Begränsa koffein, sötningsmedel (sorbitol, xylitol) och mycket fet mat. Ät regelbundet.",
@@ -86,6 +86,49 @@
     });
   });
 
+  // ---------- Vitaminer och mineraler ----------
+  function microOf(food) { return food.micro || MICRO[food.id] || null; }
+
+  function microTotals(list) {
+    const sum = NUTRIENTS.map(() => 0);
+    const missing = [];
+    list.forEach(({ food, grams }) => {
+      const m = microOf(food);
+      if (!m) { if (missing.indexOf(food.name) < 0) missing.push(food.name); return; }
+      m.forEach((v, i) => { sum[i] += (v * grams) / 100; });
+    });
+    return { sum, missing };
+  }
+
+  function fmtAmount(v) { return v >= 10 ? String(r0(v)) : String(Math.round(v * 10) / 10); }
+
+  // "Bra källa till": nutrienter som ger minst 15 % av dagsbehovet.
+  function sourcesLine(list) {
+    const { sum } = microTotals(list);
+    const top = NUTRIENTS.map((n, i) => ({ n, pct: (sum[i] / n.rda) * 100 }))
+      .filter((x) => x.pct >= 15).sort((a, b) => b.pct - a.pct).slice(0, 3);
+    if (!top.length) return "";
+    return '<div class="macros">Bra källa till: ' + top.map((x) => esc(x.n.label) + " (" + r0(x.pct) + " %)").join(", ") + "</div>";
+  }
+
+  function updateMicro(entries) {
+    const box = $("#micro-card");
+    if (!box) return;
+    if (!entries.length) {
+      box.innerHTML = '<h2>Vitaminer och mineraler</h2><div class="empty">Lägg in mat för att se vad du får i dig.</div>';
+      return;
+    }
+    const { sum, missing } = microTotals(entries);
+    box.innerHTML = '<h2>Vitaminer och mineraler</h2>' + NUTRIENTS.map((n, i) => {
+      const pct = (sum[i] / n.rda) * 100;
+      const cls = pct >= 100 ? "full" : pct >= 50 ? "mid" : "low";
+      return `<div class="mrow"><div class="mhead"><span>${esc(n.label)}</span><span><b>${fmtAmount(sum[i])}</b> av ${n.rda} ${n.unit} · ${r0(pct)} %</span></div>
+        <div class="bar"><span class="${cls}" style="width:${Math.min(100, pct)}%"></span></div></div>`;
+    }).join("") +
+      '<div class="why" style="margin-top:10px">Dagsbehov är ungefärliga för vuxna. Järn: 9 mg för män och 15 mg för kvinnor före klimakteriet. Värdena i appen är typiska och kan skilja sig från din förpackning.</div>' +
+      (missing.length ? '<div class="tip warn">Saknar vitamin- och mineralvärden för: ' + esc(missing.join(", ")) + ". De räknas inte med ovan.</div>" : "");
+  }
+
   // ---------- IDAG ----------
   function renderToday() {
     const root = $("#view-today");
@@ -96,6 +139,7 @@
       </div>
 
       <div class="card" id="totals-card"></div>
+      <div class="card" id="micro-card"></div>
 
       <div class="card">
         <h2>Lägg till mat</h2>
@@ -169,7 +213,8 @@
       .map((e) => ({ food: foodById(e.foodId), grams: e.grams }))
       .filter((x) => x.food);
     const t = sumNutrition(entries);
-    const kg = state.settings.kcalGoal, pg = state.settings.proteinGoal;
+    const kg = state.settings.kcalGoal, pg = state.settings.proteinGoal, fg = state.settings.fiberGoal;
+    const fp = fg ? Math.min(100, (t.fiber / fg) * 100) : 0;
     const kp = kg ? Math.min(100, (t.kcal / kg) * 100) : 0;
     const pp = pg ? Math.min(100, (t.protein / pg) * 100) : 0;
     $("#totals-card").innerHTML = `
@@ -179,10 +224,11 @@
         <div class="total"><div class="num">${r1(t.carbs)}</div><div class="lbl">kolhydrater (g)</div></div>
         <div class="total"><div class="num">${r1(t.fat)}</div><div class="lbl">fett (g)</div></div>
       </div>
-      <div class="goal-line">Fiber: <b>${r1(t.fiber)} g</b></div>
+      <div class="goal-line">Fiber: ${r1(t.fiber)} av ${fg} g<div class="bar"><span style="width:${fp}%"></span></div></div>
       <div class="goal-line">Kalorier: ${r0(t.kcal)} av ${kg} kcal<div class="bar"><span style="width:${kp}%"></span></div></div>
       <div class="goal-line">Protein: ${r1(t.protein)} av ${pg} g<div class="bar"><span style="width:${pp}%"></span></div></div>
     `;
+    updateMicro(entries);
   }
 
   function updateResults() {
@@ -239,6 +285,7 @@
         ${v.extras.length ? "<ul>" + v.extras.map((x) => `<li>${esc(x)}</li>`).join("") + "</ul>" : ""}
       </div>
       <div class="macros">${r0(n.kcal)} kcal · ${r1(n.protein)} g protein · ${r1(n.carbs)} g kolhydrater · ${r1(n.fat)} g fett · ${r1(n.fiber)} g fiber</div>
+      ${sourcesLine([{ food, grams }])}
     `;
   }
 
@@ -435,6 +482,7 @@
           <span><b>${r1(n.fat)}</b> g fett</span>
           <span><b>${r1(n.fiber)}</b> g fiber</span>
         </div>
+        ${sourcesLine(r.ingredients.map((i) => ({ food: foodById(i.id), grams: i.g })).filter((x) => x.food))}
         <div class="why">Per portion. Inköp för ${ui.servings} ${ui.servings === 1 ? "låda" : "lådor"}:</div>
         <h3>Ingredienser</h3>
         <ul class="ing">
@@ -500,6 +548,7 @@
         <div class="grid2">
           <div><label for="s-kcal">Kalorier (kcal)</label><input type="number" id="s-kcal" min="0" value="${s.kcalGoal}" /></div>
           <div><label for="s-protein">Protein (g)</label><input type="number" id="s-protein" min="0" value="${s.proteinGoal}" /></div>
+          <div><label for="s-fiber">Fiber (g)</label><input type="number" id="s-fiber" min="0" value="${s.fiberGoal}" /></div>
         </div>
       </div>
       <div class="card">
@@ -518,6 +567,7 @@
     $("#s-type").addEventListener("change", (e) => { state.settings.type = e.target.value; save(); });
     $("#s-kcal").addEventListener("change", (e) => { state.settings.kcalGoal = Math.max(0, parseFloat(e.target.value) || 0); save(); });
     $("#s-protein").addEventListener("change", (e) => { state.settings.proteinGoal = Math.max(0, parseFloat(e.target.value) || 0); save(); });
+    $("#s-fiber").addEventListener("change", (e) => { state.settings.fiberGoal = Math.max(0, parseFloat(e.target.value) || 0); save(); });
     $("#export-btn").addEventListener("click", exportData);
     $("#reset-btn").addEventListener("click", () => {
       if (confirm("Rensa all data? Det går inte att ångra.")) {

@@ -170,3 +170,9 @@ ol.steps { padding-left: 20px; margin: 6px 0; font-size: 0.92rem; }
 }
 
 .section-title { font-size: 1.05rem; margin: 18px 2px 8px; color: var(--brand-dark); }
+
+.mrow { margin-bottom: 10px; }
+.mhead { display: flex; justify-content: space-between; gap: 8px; font-size: 0.88rem; }
+.bar > span.full { background: var(--green); }
+.bar > span.mid { background: var(--brand); }
+.bar > span.low { background: #9bb5a8; }

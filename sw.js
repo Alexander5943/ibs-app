@@ -6,6 +6,7 @@ const ASSETS = [
   "app.js",
   "foods.js",
   "recipes.js",
+  "micro.js",
   "manifest.webmanifest",
   "icon.svg",
 ];

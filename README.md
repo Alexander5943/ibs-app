@@ -7,6 +7,7 @@ En enkel app för dig med IBS. Logga det du äter och få koll på näring och m
 - **Näringsberäkning:** Ange livsmedel och mängd i gram. Appen räknar ut kalorier, protein, kolhydrater, fett och fiber. Du ser dagssumman och framsteg mot dina mål.
 - **IBS-bedömning:** Varje livsmedel får grön, gul eller röd bedömning utifrån mängden, baserat på lågt FODMAP-riktlinjer. Du får också varningar för fettrika portioner och tips om vad som kan trigga magen.
 - **Matlådor:** 9 recept som är bra för IBS, med ingredienser per portion, näring och steg. Välj antal lådor så skalas inköpslistan. Lägg en portion i dagens logg med ett klick.
+- **Vitaminer och mineraler:** Dagens mat visar fiber, vitamin A, C, D, B12, folat, kalcium, järn, magnesium, kalium och zink mot ungefärligt dagsbehov.
 - **Egna livsmedel:** Lägg till mat som saknas, med egen FODMAP-gräns.
 - **Privat:** All data sparas lokalt i din webbläsare. Ingen server, inga konton.
 - **Mobilvänlig:** Fungerar som en app på telefonen (PWA).
@@ -40,6 +41,7 @@ styles.css          utseende
 app.js              logik och gränssnitt
 foods.js            livsmedel, näring och FODMAP-gränser
 recipes.js          matlådor
+micro.js            vitaminer och mineraler
 sw.js, manifest     offline och installation på telefon
 icon.svg            ikon
 check.js            kontrollskript
