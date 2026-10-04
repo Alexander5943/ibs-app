@@ -168,3 +168,5 @@ ol.steps { padding-left: 20px; margin: 6px 0; font-size: 0.92rem; }
   background: #1d2a25; color: #fff; padding: 10px 16px; border-radius: 999px;
   font-size: 0.9rem; z-index: 50; box-shadow: 0 4px 14px rgba(0,0,0,.25);
 }
+
+.section-title { font-size: 1.05rem; margin: 18px 2px 8px; color: var(--brand-dark); }
