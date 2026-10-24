@@ -9,6 +9,7 @@ En enkel app för dig med IBS. Logga det du äter och få koll på näring och m
 - **Matlådor:** 9 recept som är bra för IBS, med ingredienser per portion, näring och steg. Välj antal lådor så skalas inköpslistan. Lägg en portion i dagens logg med ett klick.
 - **Vitaminer och mineraler:** Dagens mat visar fiber, vitamin A, C, D, B12, folat, kalcium, järn, magnesium, kalium och zink mot ungefärligt dagsbehov.
 - **Egna livsmedel:** Lägg till mat som saknas, med egen FODMAP-gräns.
+- **Permanent lista:** Allt du lägger in ligger kvar tills du tar bort det. Du kan ändra mängden direkt i listan, och spara eller läsa in en backup under Inställningar.
 - **Privat:** All data sparas lokalt i din webbläsare. Ingen server, inga konton.
 - **Mobilvänlig:** Fungerar som en app på telefonen (PWA).
 

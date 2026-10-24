@@ -2,7 +2,7 @@
   "use strict";
 
   const KEY = "ibs-koll-v1";
-  const DEFAULTS = { log: {}, custom: [], boxes: [], settings: { type: "", kcalGoal: 2000, proteinGoal: 90, fiberGoal: 25 } };
+  const DEFAULTS = { list: [], log: {}, custom: [], boxes: [], settings: { type: "", kcalGoal: 2000, proteinGoal: 90, fiberGoal: 25 } };
 
   const TYPE_TIPS = {
     D: "IBS-D: Begränsa koffein, sötningsmedel (sorbitol, xylitol) och mycket fet mat. Ät regelbundet.",
@@ -15,8 +15,15 @@
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
       if (s) {
+        // Äldre versioner sparade maten per dag. Flytta allt till den permanenta listan.
+        let list = s.list;
+        if (!list) {
+          list = [];
+          Object.keys(s.log || {}).sort().forEach((d) => (s.log[d] || []).forEach((e) => list.push(e)));
+        }
         return {
-          log: s.log || {},
+          list,
+          log: {},
           custom: s.custom || [],
           boxes: s.boxes || [],
           settings: Object.assign({}, DEFAULTS.settings, s.settings || {}),
@@ -45,7 +52,7 @@
   function r0(n) { return Math.round(n); }
   function allFoods() { return FOODS.concat(state.custom); }
   function foodById(id) { return allFoods().find((x) => x.id === id); }
-  function dayEntries(date) { return state.log[date] || []; }
+  function dayEntries() { return state.list; }
   function $(sel, root) { return (root || document).querySelector(sel); }
 
   function nutrition(food, grams) {
@@ -134,8 +141,10 @@
     const root = $("#view-today");
     root.innerHTML = `
       <div class="card">
-        <label for="date">Datum</label>
-        <input type="date" id="date" value="${ui.date}" />
+        <div class="row spread">
+          <div><b>Min lista</b><div class="why">Allt du lägger in ligger kvar tills du själv tar bort det.</div></div>
+          <button class="btn danger small" id="clear-list">Rensa listan</button>
+        </div>
       </div>
 
       <div class="card" id="totals-card"></div>
@@ -151,11 +160,11 @@
       </div>
 
       <div class="card">
-        <h2>Dagens mat</h2>
+        <h2>Det du äter</h2>
         <div id="log"></div>
         <div id="daytips"></div>
         <div id="savebox" style="display:none">
-          <h3>Gör en matlåda av dagens mat</h3>
+          <h3>Gör en matlåda av listan</h3>
           <div class="row">
             <div><label for="mb-name">Namn</label><input type="text" id="mb-name" placeholder="t.ex. Kycklinglåda" /></div>
             <div><label for="mb-n">Antal portioner</label>
@@ -194,9 +203,11 @@
       </div>
     `;
 
-    $("#date").addEventListener("change", (e) => {
-      ui.date = e.target.value || todayStr();
-      updateTotals(); updateLog();
+    $("#clear-list").addEventListener("click", () => {
+      if (!state.list.length) { toast("Listan är redan tom"); return; }
+      if (confirm("Ta bort allt i listan? Det går inte att ångra.")) {
+        state.list = []; save(); updateTotals(); updateLog();
+      }
     });
     $("#q").addEventListener("input", (e) => { ui.query = e.target.value; updateResults(); });
     $("#c-fodmap").addEventListener("change", (e) => {
@@ -209,7 +220,7 @@
   }
 
   function updateTotals() {
-    const entries = dayEntries(ui.date)
+    const entries = dayEntries()
       .map((e) => ({ food: foodById(e.foodId), grams: e.grams }))
       .filter((x) => x.food);
     const t = sumNutrition(entries);
@@ -292,23 +303,22 @@
   function addEntry() {
     const grams = parseFloat($("#grams").value);
     if (!ui.selectedId || !(grams > 0)) return;
-    addToLog(ui.date, ui.selectedId, grams);
+    addToLog(ui.selectedId, grams);
     ui.selectedId = null; ui.query = "";
     $("#q").value = "";
     updateResults(); updateSelected(); updateTotals(); updateLog();
     toast("Tillagd");
   }
 
-  function addToLog(date, foodId, grams) {
-    if (!state.log[date]) state.log[date] = [];
-    state.log[date].push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), foodId, grams });
+  function addToLog(foodId, grams) {
+    state.list.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2, 7), foodId, grams });
     save();
   }
 
   function updateLog() {
     const box = $("#log");
     const tips = $("#daytips");
-    const entries = dayEntries(ui.date);
+    const entries = dayEntries();
     const sb = $("#savebox");
     if (sb) sb.style.display = entries.length ? "block" : "none";
     if (!entries.length) {
@@ -325,7 +335,8 @@
         <div class="entry">
           <span class="dot ${v.level}" title="${esc(v.title)}"></span>
           <div class="main">
-            <div class="name">${esc(food.name)} · ${r0(e.grams)} g</div>
+            <div class="name">${esc(food.name)}</div>
+            <div class="meta"><input type="number" class="g-edit" data-id="${esc(e.id)}" min="1" step="any" value="${r1(e.grams)}" aria-label="Mängd i gram" /> g</div>
             <div class="meta">${r0(n.kcal)} kcal · ${r1(n.protein)} g protein · ${esc(v.title)}</div>
           </div>
           <button class="icon-btn" data-action="del" data-id="${esc(e.id)}" aria-label="Ta bort">🗑</button>
@@ -339,7 +350,7 @@
       return f && f.safeG && e.grams / f.safeG >= 0.7;
     });
     if (near.length >= 3) {
-      html += '<div class="tip warn">Flera livsmedel ligger nära sin gräns idag. FODMAP läggs ihop under dagen. Sprid ut dem eller minska någon portion.</div>';
+      html += '<div class="tip warn">Flera livsmedel ligger nära sin gräns. FODMAP läggs ihop under dagen. Sprid ut dem eller minska någon portion.</div>';
     }
     const type = state.settings.type;
     if (type && TYPE_TIPS[type]) html += `<div class="tip">${esc(TYPE_TIPS[type])}</div>`;
@@ -367,6 +378,17 @@
     renderToday();
   }
 
+  // Ändra mängd direkt i listan
+  document.addEventListener("change", (e) => {
+    const inp = e.target.closest && e.target.closest(".g-edit");
+    if (!inp) return;
+    const g = parseFloat(inp.value);
+    const entry = state.list.find((x) => x.id === inp.dataset.id);
+    if (!entry) return;
+    if (g > 0) entry.grams = g;
+    save(); updateTotals(); updateLog();
+  });
+
   // Klick-hantering för Idag
   document.addEventListener("click", (e) => {
     const el = e.target.closest("[data-action]");
@@ -381,13 +403,14 @@
       const food = foodById(ui.selectedId);
       if (food && food.safeG) { $("#grams").value = food.safeG; updateCheck(); }
     } else if (a === "del") {
-      state.log[ui.date] = dayEntries(ui.date).filter((x) => x.id !== el.dataset.id);
+      state.list = state.list.filter((x) => x.id !== el.dataset.id);
       save(); updateTotals(); updateLog();
     } else if (a === "recipe-log") {
       const r = findRecipe(el.dataset.id);
       if (!r) return;
-      r.ingredients.forEach((i) => addToLog(ui.date, i.id, i.g));
-      toast("1 portion tillagd i loggen (" + ui.date + ")");
+      r.ingredients.forEach((i) => addToLog(i.id, i.g));
+      save(); updateTotals(); updateLog();
+      toast("1 portion tillagd i listan");
     } else if (a === "recipe-copy") {
       copyIngredients(el.dataset.id);
     } else if (a === "box-del") {
@@ -427,13 +450,13 @@
 
   // Slå ihop dagens poster per livsmedel och dela på antal portioner.
   function saveBox() {
-    const entries = dayEntries(ui.date).filter((e) => foodById(e.foodId));
+    const entries = dayEntries().filter((e) => foodById(e.foodId));
     if (!entries.length) { toast("Lägg till mat först"); return; }
     const n = parseInt($("#mb-n").value, 10) || 1;
     const totals = {};
     entries.forEach((e) => { totals[e.foodId] = (totals[e.foodId] || 0) + e.grams; });
     const ingredients = Object.keys(totals).map((id) => ({ id, g: Math.round((totals[id] / n) * 10) / 10 }));
-    const name = $("#mb-name").value.trim() || "Matlåda " + ui.date;
+    const name = $("#mb-name").value.trim() || "Matlåda " + todayStr();
     state.boxes.unshift({
       id: "box-" + Date.now(), title: name, portions: n, ingredients,
       meal: "Egen matlåda", tags: ["Egen"], why: "", extras: [], steps: [],
@@ -553,9 +576,11 @@
       </div>
       <div class="card">
         <h2>Data</h2>
-        <p class="why" style="margin-top:0">All data sparas bara i din webbläsare.</p>
+        <p class="why" style="margin-top:0">All data sparas bara i din webbläsare på den här enheten. Spara en backup ibland, och använd den för att flytta datan till en annan enhet.</p>
         <div class="actions">
-          <button class="btn secondary" id="export-btn">Exportera (JSON)</button>
+          <button class="btn secondary" id="export-btn">Spara backup (JSON)</button>
+          <button class="btn secondary" id="import-btn">Läs in backup</button>
+          <input type="file" id="import-file" accept="application/json,.json" style="display:none" />
           <button class="btn danger" id="reset-btn">Rensa all data</button>
         </div>
       </div>
@@ -569,6 +594,25 @@
     $("#s-protein").addEventListener("change", (e) => { state.settings.proteinGoal = Math.max(0, parseFloat(e.target.value) || 0); save(); });
     $("#s-fiber").addEventListener("change", (e) => { state.settings.fiberGoal = Math.max(0, parseFloat(e.target.value) || 0); save(); });
     $("#export-btn").addEventListener("click", exportData);
+    $("#import-btn").addEventListener("click", () => $("#import-file").click());
+    $("#import-file").addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const d = JSON.parse(reader.result);
+          if (!d || typeof d !== "object") throw new Error("ogiltig");
+          if (!confirm("Ersätt din nuvarande data med backupen?")) return;
+          state.list = Array.isArray(d.list) ? d.list : [];
+          state.custom = Array.isArray(d.custom) ? d.custom : [];
+          state.boxes = Array.isArray(d.boxes) ? d.boxes : [];
+          state.settings = Object.assign({}, DEFAULTS.settings, d.settings || {});
+          save(); toast("Backup inläst"); renderToday(); renderSettings();
+        } catch (err) { toast("Filen kunde inte läsas"); }
+      };
+      reader.readAsText(file);
+    });
     $("#reset-btn").addEventListener("click", () => {
       if (confirm("Rensa all data? Det går inte att ångra.")) {
         localStorage.removeItem(KEY);
@@ -588,6 +632,7 @@
 
   // ---------- Start ----------
   renderToday();
+  if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(() => {}); }
 
   if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
